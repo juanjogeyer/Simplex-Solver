@@ -19,21 +19,16 @@ class SimplexRequest(BaseModel):
 
 @simplex.post("/solve")
 def solve(request: SimplexRequest):
-    # Copiar coeficientes de la función objetivo
     c = request.c.copy()
 
-    # Si el modelo es de maximización, se transforma en un problema de minimización
     if request.model.lower() == "max":
         c = [-x for x in c]
 
-    # Resolver con tu servicio simplex
     result = solve_simplex(c, request.A, request.b)
 
-    # Ajustar el valor de la función objetivo en caso de maximización
     if request.model.lower() == "max" and result["success"]:
         result["objective_value"] = -result["objective_value"]
 
-    # Agregar el modelo al resultado
     result["model"] = request.model
 
     return result

@@ -12,7 +12,6 @@ def test_simplex_solver_maximization():
         x1, x2 >= 0
     """
 
-    # SciPy minimiza, así que usamos coeficientes negativos para maximizar
     model = "max"
     c = [-3, -5]
     A = [
@@ -25,7 +24,6 @@ def test_simplex_solver_maximization():
     result = solve_simplex(c, A, b)
 
     assert result["success"] is True
-    # La solución óptima esperada es x1=2, x2=6, valor Z=36
     assert pytest.approx(result["solution"][0], rel=1e-3) == 2.0
     assert pytest.approx(result["solution"][1], rel=1e-3) == 6.0
     assert pytest.approx(-result["objective_value"], rel=1e-3) == 36.0
