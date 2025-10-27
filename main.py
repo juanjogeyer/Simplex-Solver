@@ -1,10 +1,14 @@
 from fastapi import FastAPI
-from routers import simplex
+from routers.simplex import router as simplex_router
 
-app = FastAPI()
+app = FastAPI(
+    title="Simplex Solver API",
+    description="Una API para resolver problemas de Programación Lineal.",
+    version="1.0.0"
+)
 
-app.include_router(simplex)
+app.include_router(simplex_router)
 
-@app.get("/")
+@app.get("/", tags=["Root"])
 def read_root():
-    return "hola mundo"
+    return {"message": "Bienvenido a la API de Simplex Solver"}

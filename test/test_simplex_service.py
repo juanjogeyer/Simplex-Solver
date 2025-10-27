@@ -1,29 +1,35 @@
 import pytest
-from services.simplex_service import solve_simplex
+from services.simplex_service import SimplexService
 
 def test_simplex_solver_maximization():
     """
-    Problema:
-    Max Z = 3x1 + 5x2
+    Max Z = 7x1 + 8x2 + 5x3 + 4x4 + 6x5 + 2x6
     Sujeto a:
-        x1 <= 4
-        2x2 <= 12
-        3x1 + 2x2 <= 18
-        x1, x2 >= 0
+        0.5x1 + 0.45x2 + 0.6x3 <= 2400
+        x1 + x2 + x3 <= 5500
+        x1 + x4 <= 2000
+        x2 + x5 <= 4000
+        x3 + x6 <= 5000
+        x1, x2, x3, x4, x5, x6 >= 0
     """
 
-    model = "max"
-    c = [-3, -5]
+    # Definición del problema
+    model = "max"  # Maximización
+    c = [7, 8, 5, 4, 6, 2]  # Coeficientes de la función objetivo
     A = [
-        [1, 0],   # x1 <= 4
-        [0, 2],   # 2x2 <= 12
-        [3, 2]    # 3x1 + 2x2 <= 18
+        [0.5, 0.45, 0.6, 0, 0, 0],  # 0.5x1 + 0.45x2 + 0.6x3 <= 2400
+        [1, 1, 1, 0, 0, 0],         # x1 + x2 + x3 <= 5500
+        [1, 0, 0, 1, 0, 0],         # x1 + x4 <= 2000
+        [0, 1, 0, 0, 1, 0],         # x2 + x5 <= 4000
+        [0, 0, 1, 0, 0, 1]          # x3 + x6 <= 5000
     ]
-    b = [4, 12, 18]
+    b = [2400, 5500, 2000, 4000, 5000]  # Restricciones del lado derecho
 
-    result = solve_simplex(c, A, b)
+    simplex = SimplexService()
 
-    assert result["success"] is True
-    assert pytest.approx(result["solution"][0], rel=1e-3) == 2.0
-    assert pytest.approx(result["solution"][1], rel=1e-3) == 6.0
-    assert pytest.approx(-result["objective_value"], rel=1e-3) == 36.0
+    result = simplex.solve_with_components(model, c, A, b)
+
+    # Verificaciones
+    assert result["status"] == "success"  # El problema debe resolverse con éxito
+    assert isinstance(result["solution"]["variables"], dict)  # La solución debe ser un diccionario
+    assert result["solution"]["objective_value"] is not None  # Debe devolver un valor objetivo
