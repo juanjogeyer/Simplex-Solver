@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Simplex Solver</title>
+    <link rel="stylesheet" href="../static/css/style.css">
+</head>
+<body>
+    <div class="wrapper">
+        <div class="container">
+            <label>Variables: </label>
+            <input type="number" id="numVariables" value="2" min="1" onchange="updateVariables()">
+
+            <br><br>
+
+            <label>Tipo:</label>
+            <button id="btnMax" class="btn-selected" onclick="setType('max')">Maximizar</button>
+            <button id="btnMin" class="btn-unselected" onclick="setType('min')">Minimizar</button>
+        </div>
+
+        <div class="container">
+            <h3>Función Objetivo</h3>
+            <div id="funcionObjetivo"></div>
+        </div>
+
+        <section>
+            <div class="card" id="restricciones">
+                <h3>Restricciones</h3>
+                <div class="restriccion">
+                    <input type="number" value="1" class="a1">x₁ +
+                    <input type="number" value="1" class="a2">x₂
+                    <select class="operador">
+                        <option value="<=" selected>≤</option>
+                        <option value="=">=</option>
+                        <option value=">=">≥</option>
+                    </select>
+                    <input type="number" value="10" class="b">
+                </div>
+                <button id="btnAgregar" class="btn secondary">Agregar restricción</button>
+            </div>
+        </section>
+
+        <!-- Resolver -->
+        <button id="btnResolver" class="btn primary">Resolver</button>
+
+        <div id="resultado"></div>
+
+        <script>
+            let tipo = "max"; // valor por defecto
+
+            function setType(t) {
+                tipo = t;
+                document.getElementById("btnMax").className = (t === "max") ? "btn-selected" : "btn-unselected";
+                document.getElementById("btnMin").className = (t === "min") ? "btn-selected" : "btn-unselected";
+                renderFuncionObjetivo();
+            }
+
+            function updateVariables() {
+                renderFuncionObjetivo();
+            }
+
+            function renderFuncionObjetivo() {
+                const contenedor = document.getElementById("funcionObjetivo");
+                const n = parseInt(document.getElementById("numVariables").value);
+                contenedor.innerHTML = "";
+
+                const label = document.createElement("label");
+                label.innerHTML = `${tipo === 'max' ? 'Max' : 'Min'} Z = `;
+                contenedor.appendChild(label);
+
+                for (let i = 1; i <= n; i++) {
+                    const input = document.createElement("input");
+                    input.type = "number";
+                    input.value = "1";
+                    input.id = `coef${i}`;
+                    contenedor.appendChild(input);
+
+                    const sub = document.createElement("span");
+                    sub.innerHTML = ` x<sub>${i}</sub>`;
+                    contenedor.appendChild(sub);
+
+                    if (i < n) {
+                        contenedor.appendChild(document.createTextNode(" + "));
+                    }
+                }
+            }
+
+            function getFunctionObjective() {
+                const n = parseInt(document.getElementById("numVariables").value);
+                const c = [];
+                for (let i = 1; i <= n; i++) {
+                    c.push(parseFloat(document.getElementById(`coef${i}`).value) || 0);
+                }
+                return c;
+            }
+
+            function getRestrictions() {
+                const restricciones = [];
+                const restriccionElements = document.querySelectorAll(".restriccion");
+                restriccionElements.forEach(restriccion => {
+                    const a1 = parseFloat(restriccion.querySelector(".a1").value || 0);
+                    const a2 = parseFloat(restriccion.querySelector(".a2").value || 0);
+                    const operador = restriccion.querySelector(".operador").value;
+                    const b = parseFloat(restriccion.querySelector(".b").value || 0);
+                    restricciones.push([a1, a2, operador, b]);
+                });
+                return restricciones;
+            }
+
+            function prepareRequestData() {
+                const c = getFunctionObjective();
+                const restricciones = getRestrictions();
+
+                const A = restricciones.map(r => {
+                    if (r[2] === "<=") return [r[0], r[1]]; // A_ub
+                    if (r[2] === "=") return [r[0], r[1]]; // A_eq
+                    if (r[2] === ">=") return [r[0], r[1]]; // A_ub
+                });
+
+                const b = restricciones.map(r => r[3]);
+
+                return {
+                    model: tipo,
+                    c: c,
+                    A: A,
+                    b: b
+                };
+            }
+
+            async function solveProblem() {
+                const requestData = prepareRequestData();
+                try {
+                    const response = await fetch("/simplex/solve", {
+                        method: "POST",
+                        headers: {
+                            "Content-Type": "application/json"
+                        },
+                        body: JSON.stringify(requestData)
+                    });
+
+                    const result = await response.json();
+                    if (result.status === "success") {
+                        displayResult(result);
+                    } else {
+                        alert("Error: " + result.message);
+                    }
+                } catch (error) {
+                    console.error("Error al resolver:", error);
+                    alert("Hubo un error al resolver el problema.");
+                }
+            }
+
+            function displayResult(result) {
+                const resultDiv = document.getElementById("resultado");
+                resultDiv.innerHTML = `
+                    <h3>Resultado</h3>
+                    <p>Valor de la función objetivo: ${result.solution.objective_value}</p>
+                    <p>Solución: </p>
+                    <ul>
+                        ${Object.entries(result.solution.variables).map(([varName, value]) => `<li>${varName}: ${value}</li>`).join('')}
+                    </ul>
+                `;
+            }
+
+            // inicializar vista
+            renderFuncionObjetivo();
+
+            document.getElementById("btnResolver").addEventListener("click", solveProblem);
+        </script>
+
+        <script src="../static/js/app.js"></script>
+    </div>
+</body>
+</html>
