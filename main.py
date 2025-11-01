@@ -1,14 +1,15 @@
 from fastapi import FastAPI
-from routers.simplex import router as simplex_router
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import HTMLResponse
+from routers import router 
 
-app = FastAPI(
-    title="Simplex Solver API",
-    description="Una API para resolver problemas de Programación Lineal.",
-    version="1.0.0"
-)
+app = FastAPI()
 
-app.include_router(simplex_router)
+app.mount("/static", StaticFiles(directory="frontend/static"), name="static")
 
-@app.get("/", tags=["Root"])
-def read_root():
-    return {"message": "Bienvenido a la API de Simplex Solver"}
+@app.get("/", response_class=HTMLResponse)
+async def get_html():
+    with open("frontend/templates/index.html", "r", encoding="utf-8") as f:
+        return HTMLResponse(content=f.read(), status_code=200)
+
+app.include_router(router)

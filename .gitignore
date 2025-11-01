@@ -5,3 +5,7 @@ __pycache__/
 *.pyc
 # Archivos de configuración locales
 .python-version
+.vscode/
+.github/
+.pytest_cache/
+.env

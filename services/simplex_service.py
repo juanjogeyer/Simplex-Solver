@@ -45,6 +45,9 @@ class SimplexService:
             c_to_solve = c_np.copy()
             if model.lower() == 'max':
                 c_to_solve = -c_to_solve
+            elif model.lower() == 'min':
+                A_np = -A_np
+                b_np = -b_np
 
             result = _execute_linprog_solver(c_to_solve, A_np, b_np)
 
