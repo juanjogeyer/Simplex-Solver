@@ -31,7 +31,8 @@ body {
     box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
     width: 100%;
 }
-.container{
+
+.container {
     background-color: #f3fff3;
     border-radius: 10px;
     padding: 20px;
@@ -64,31 +65,40 @@ input[type="number"]:focus {
     outline: none;
     box-shadow: 0 0 3px #8fd19e;
 }
-
-button {
-    padding: 7px 15px;
-    margin: 5px;
-    border: none;
-    border-radius: 5px;
+/* --- Botones Max y Min --- */
+#btnMax,
+#btnMin {
+    padding: 10px 20px;
+    border-radius: 8px;
     font-weight: 600;
-    cursor: pointer;
-    transition: background-color 0.2s ease, transform 0.1s ease;
-}
-
-button:hover {
-    transform: scale(1.05);
-}
-
-.btn-selected {
-    background-color: #2e8b57;
-    color: white;
-}
-
-.btn-unselected {
-    background-color: #e0e0e0;
+    font-size: 0.95rem;
+    border: 2px solid transparent;
+    background-color: #f0f0f0;
     color: #333;
+    cursor: pointer;
+    transition: all 0.2s ease-in-out;
 }
 
+/* Al pasar el mouse */
+#btnMax:hover,
+#btnMin:hover {
+    transform: scale(1.08);
+    box-shadow: 0 0 6px rgba(0, 0, 0, 0.15);
+}
+
+/* Estado activo (el que se queda después del click)
+#btnMax.active,
+#btnMin.active {
+    background-color: #28a745 !important; 
+    color: white !important; 
+    border-color: #1d7a32 !important;
+    box-shadow: 0 0 10px rgba(40, 167, 69, 0.6);
+    transform: scale(1.05);
+} */
+
+/* ------------------------
+   OTROS BOTONES
+------------------------- */
 .btn.primary,
 .btn.secondary {
     background-color: #28a745;
@@ -136,6 +146,9 @@ button:hover {
     box-shadow: 0 2px 4px rgba(0,0,0,0.1);
 }
 
+/* ------------------------
+   RESPONSIVE
+------------------------- */
 @media (max-width: 600px) {
     body {
         padding: 15px;
@@ -148,4 +161,25 @@ button:hover {
     button {
         font-size: 0.9rem;
     }
+}
+
+.btn {
+    background-color: #f0f0f0;
+    color: #333;
+    border: 1px solid #ccc;
+    padding: 8px 16px;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: 0.2s;
+}
+
+.btn:hover {
+    background-color: #ddd;
+    transform: scale(1.05);
+}
+
+.btn.active {
+    background-color: #007bff; /* azul tipo "activo" */
+    color: pink;
+    border-color: #0056b3;
 }

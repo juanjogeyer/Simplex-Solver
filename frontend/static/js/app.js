@@ -44,7 +44,7 @@ document.addEventListener("DOMContentLoaded", () => {
     // ---------------------------
     document.getElementById("numVariables").addEventListener("change", () => {
         renderFuncionObjetivo();
-        actualizarRestricciones(); // ✅ Ahora actualiza también las restricciones
+        actualizarRestricciones();
     });
 
     // ---------------------------
@@ -120,8 +120,8 @@ function actualizarRestricciones() {
     const contenedor = document.getElementById("restricciones");
     const restricciones = contenedor.querySelectorAll(".restriccion");
 
-    restricciones.forEach(r => r.remove()); // eliminar todas
-    agregarRestriccion(); // deja al menos una base
+    restricciones.forEach(r => r.remove());
+    agregarRestriccion();
 }
 
 // ---------------------------
@@ -131,8 +131,12 @@ function getFunctionObjective() {
     const numVariables = parseInt(document.getElementById("numVariables").value);
     const c = [];
     for (let i = 1; i <= numVariables; i++) {
-        const coef = parseFloat(document.getElementById(`coef${i}`).value);
-        c.push(coef);
+        const valor = document.getElementById(`coef${i}`).value;
+        const numero = parseFloat(valor);
+        if (isNaN(numero) || valor.trim() === "") {
+            throw new Error(`Coeficiente x${i} de la función objetivo inválido o vacío`);
+        }
+        c.push(numero);
     }
     return c;
 }
@@ -148,12 +152,23 @@ function getRestrictions() {
         const coefs = [];
         let i = 1;
         while (restriccion.querySelector(`.a${i}`)) {
-            coefs.push(parseFloat(restriccion.querySelector(`.a${i}`).value));
+            const valor = restriccion.querySelector(`.a${i}`).value;
+            const numero = parseFloat(valor);
+            if (isNaN(numero) || valor.trim() === "") {
+                throw new Error(`Valor inválido en coeficiente x${i}`);
+            }
+            coefs.push(numero);
             i++;
         }
         const operador = restriccion.querySelector(".operador").value;
-        const valor = parseFloat(restriccion.querySelector(".b").value);
-        restricciones.push([...coefs, operador, valor]);
+        const valorB = restriccion.querySelector(".b").value;
+        const numeroB = parseFloat(valorB);
+        
+        if (isNaN(numeroB) || valorB.trim() === "") {
+            throw new Error("Valor inválido en el lado derecho de la restricción");
+        }
+        
+        restricciones.push([...coefs, operador, numeroB]);
     });
 
     return restricciones;
@@ -163,54 +178,99 @@ function getRestrictions() {
 // Preparar y enviar solicitud al backend
 // ---------------------------
 function prepareRequestData() {
-    const c = getFunctionObjective();
-    const restricciones = getRestrictions();
+    try {
+        const c = getFunctionObjective();
+        const restricciones = getRestrictions();
 
-    const A = restricciones.map(r => r.slice(0, -2));
-    const b = restricciones.map(r => r.at(-1));
+        const A = restricciones.map(r => r.slice(0, -2));
+        const b = restricciones.map(r => r.at(-1));
 
-    return {
-        model: tipoModelo,
-        c,
-        A,
-        b
-    };
+        return {
+            model: tipoModelo,
+            c,
+            A,
+            b
+        };
+    } catch (error) {
+        throw error; // Re-lanzar para que lo capture solveProblem
+    }
 }
 
 // ---------------------------
 // Resolver el problema con backend
 // ---------------------------
 async function solveProblem() {
-    const requestData = prepareRequestData();
+    const resultDiv = document.getElementById("resultado");
+    
+    resultDiv.innerHTML = "⏳ Calculando...";
+    resultDiv.style.color = "blue";
 
     try {
-        const response = await fetch("/simplex/solve", {
+        const data = prepareRequestData();
+
+        const response = await fetch("/resolver_simplex", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(requestData)
+            body: JSON.stringify(data)
         });
-        console.log("Respuesta del servidor:", requestData);
+
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
 
         const result = await response.json();
-        if (response.ok) displayResult(result);
-        else alert("Error: " + result.message);
+
+        console.log("Respuesta del servidor:", result); // Para debugging
+
+        // Mostrar resultados según status
+        if (result.status === 1) {
+            resultDiv.innerHTML = `
+                <h3>✅ Solución encontrada</h3>
+                <p><strong>Valor óptimo:</strong> ${result.solution.objective_value}</p>
+                <p><strong>Variables:</strong></p>
+                <ul>
+                    ${Object.entries(result.solution.variables)
+                        .map(([v, val]) => `<li>${v}: ${val.toFixed(4)}</li>`)
+                        .join("")}
+                </ul>
+            `;
+            resultDiv.style.color = "green";
+        } else if (result.status === 2) {
+            resultDiv.innerHTML = "<h3>❌ Problema no factible</h3><p>No existe una solución que cumpla todas las restricciones.</p>";
+            resultDiv.style.color = "red";
+        } else if (result.status === 3) {
+            resultDiv.innerHTML = "<h3>⚠️ Problema ilimitado</h3><p>La función objetivo no tiene límite (puede crecer infinitamente).</p>";
+            resultDiv.style.color = "orange";
+        } else {
+            resultDiv.innerHTML = `<h3>❌ Error desconocido</h3><p>${result.message || "Verifica los datos ingresados."}</p>`;
+            resultDiv.style.color = "red";
+        }
+
     } catch (error) {
-        console.error("Error al resolver:", error);
-        alert("Hubo un error al resolver el problema.");
+        console.error("Error:", error);
+        
+        // Diferenciar entre errores de validación y errores de conexión
+        if (error.message.includes("inválido") || error.message.includes("vacío")) {
+            resultDiv.innerHTML = `<h3>⚠️ Error en los datos</h3><p>${error.message}</p><p>Por favor, verifica que todos los campos contengan números válidos.</p>`;
+            resultDiv.style.color = "orange";
+        } else {
+            resultDiv.innerHTML = `<h3>❌ Error de conexión</h3><p>${error.message}</p>`;
+            resultDiv.style.color = "red";
+        }
     }
 }
 
-// ---------------------------
-// Mostrar resultado
-// ---------------------------
-function displayResult(result) {
-    const resultDiv = document.getElementById("resultado");
-    resultDiv.innerHTML = `
-        <h3>Resultado</h3>
-        <p>Valor de la función objetivo: ${result.solution.objective_value}</p>
-        <p>Solución:</p>
-        <ul>
-            ${Object.entries(result.solution.variables).map(([v, val]) => `<li>${v}: ${val}</li>`).join("")}
-        </ul>
-    `;
-}
+// Validación de entrada en tiempo real
+document.addEventListener("input", e => {
+    if (e.target.tagName === "INPUT" && e.target.type === "number") {
+        // Permitir solo números, punto decimal y signo negativo
+        e.target.value = e.target.value.replace(/[^\d\.\-]/g, "");
+        
+        // Resaltar en rojo si está vacío o inválido
+        if (e.target.value.trim() === "" || isNaN(parseFloat(e.target.value))) {
+            e.target.style.border = "2px solid red";
+        } else {
+            e.target.style.border = "";
+        }
+    }
+});
