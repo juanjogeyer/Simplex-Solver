@@ -1,0 +1,1 @@
+from .simplex import resolver_simplex_tabular
