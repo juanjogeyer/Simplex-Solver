@@ -1,276 +1,386 @@
-let tipoModelo = "max"; // Define la variable globalmente
+// Estado global del tipo de modelo (maximización / minimización)
+let tipoModelo = "max";
 
+/* ============================================================
+   EVENTOS PRINCIPALES
+============================================================ */
 document.addEventListener("DOMContentLoaded", () => {
-    const contenedor = document.getElementById("restricciones");
+    inicializarEventos();
+    inicializarInterfaz();
+    restaurarDatosPrevios();
+});
+
+/* ============================================================
+   INICIALIZACIÓN
+============================================================ */
+
+/**
+ * Configura todos los listeners iniciales de botones y entradas.
+ */
+function inicializarEventos() {
     const btnAgregar = document.getElementById("btnAgregar");
     const btnResolver = document.getElementById("btnResolver");
-
-    // ---------------------------
-    // Alternar entre Max y Min
-    // ---------------------------
     const btnMax = document.getElementById("btnMax");
     const btnMin = document.getElementById("btnMin");
+    const inputVariables = document.getElementById("numVariables");
 
-    btnMax.addEventListener("click", () => {
-        tipoModelo = "max";
-        btnMax.classList.add("active");
-        btnMin.classList.remove("active");
-        renderFuncionObjetivo();
-    });
+    // Alternar tipo de modelo (Max / Min)
+    btnMax.addEventListener("click", () => alternarModelo("max", btnMax, btnMin));
+    btnMin.addEventListener("click", () => alternarModelo("min", btnMin, btnMax));
 
-    btnMin.addEventListener("click", () => {
-        tipoModelo = "min";
-        btnMin.classList.add("active");
-        btnMax.classList.remove("active");
-        renderFuncionObjetivo();
-    });
-
-    // ---------------------------
     // Agregar nueva restricción
-    // ---------------------------
-    btnAgregar.addEventListener("click", () => agregarRestriccion());
+    btnAgregar.addEventListener("click", agregarRestriccion);
 
-    // ---------------------------
-    // Eliminar restricción individual
-    // ---------------------------
-    contenedor.addEventListener("click", (e) => {
-        if (e.target.classList.contains("btnEliminar")) {
-            e.target.parentElement.remove();
-        }
-    });
-
-    // ---------------------------
-    // Cambiar cantidad de variables dinámicamente
-    // ---------------------------
-    document.getElementById("numVariables").addEventListener("change", () => {
+    // Actualizar cuando cambia la cantidad de variables
+    inputVariables.addEventListener("change", () => {
         renderFuncionObjetivo();
         actualizarRestricciones();
     });
 
-    // ---------------------------
-    // Conectar el botón Resolver con la función
-    // ---------------------------
+    // Resolver el problema
     btnResolver.addEventListener("click", solveProblem);
 
-    // Inicializar función objetivo y restricción base
+    // Validación dinámica de entradas numéricas
+    document.addEventListener("input", validarEntradaNumerica);
+}
+
+/**
+ * Renderiza los elementos iniciales en la interfaz.
+ */
+function inicializarInterfaz() {
     renderFuncionObjetivo();
     actualizarRestricciones();
-});
+}
 
-// ---------------------------
-// Renderizar función objetivo
-// ---------------------------
+/* ============================================================
+   FUNCIONES DE INTERFAZ
+============================================================ */
+
+/**
+ * Alterna el tipo de modelo entre MAX y MIN, actualizando estilos.
+ */
+function alternarModelo(tipo, btnActivo, btnInactivo) {
+    tipoModelo = tipo;
+    btnActivo.classList.replace("btn-secondary", "btn-primary");
+    btnInactivo.classList.replace("btn-primary", "btn-secondary");
+    renderFuncionObjetivo();
+}
+
+/**
+ * Renderiza la función objetivo según el número de variables y tipo de modelo.
+ */
 function renderFuncionObjetivo() {
     const contenedor = document.getElementById("funcionObjetivo");
-    const numVariables = parseInt(document.getElementById("numVariables").value);
+    const numVariables = parseInt(document.getElementById("numVariables").value, 10);
     contenedor.innerHTML = "";
 
     const label = document.createElement("label");
-    label.innerHTML = (tipoModelo === "max" ? "Max" : "Min") + " Z = ";
+    label.textContent = tipoModelo === "max" ? "Maximizar Z = " : "Minimizar Z = ";
+    label.className = "input-label";
     contenedor.appendChild(label);
 
     for (let i = 1; i <= numVariables; i++) {
-        const input = document.createElement("input");
-        input.type = "number";
-        input.value = "1";
-        input.id = `coef${i}`;
-        contenedor.appendChild(input);
-
-        const sub = document.createElement("span");
-        sub.innerHTML = ` x${i}`;
-        contenedor.appendChild(sub);
-
-        if (i < numVariables) contenedor.appendChild(document.createTextNode(" + "));
+        contenedor.appendChild(crearInputVariable(`coef${i}`, 1));
+        contenedor.insertAdjacentHTML("beforeend", ` x<sub>${i}</sub>${i < numVariables ? " + " : ""}`);
     }
 }
 
-// ---------------------------
-// Agregar restricción nueva
-// ---------------------------
+/**
+ * Crea un input numérico estandarizado.
+ */
+function crearInputVariable(id, valor = "") {
+    const input = document.createElement("input");
+    input.type = "number";
+    input.value = valor;
+    input.className = "input-field variable-input";
+    input.id = id;
+    return input;
+}
+
+/**
+ * Agrega una nueva restricción al contenedor.
+ */
 function agregarRestriccion() {
     const contenedor = document.getElementById("restricciones");
-    const btnAgregar = document.getElementById("btnAgregar");
-    const numVars = parseInt(document.getElementById("numVariables").value);
-    const restriccionDiv = document.createElement("div");
-    restriccionDiv.classList.add("restriccion");
+    const numVars = parseInt(document.getElementById("numVariables").value, 10);
 
-    let contenido = "";
-    for (let i = 1; i <= numVars; i++) {
-        contenido += ` <input type="number" value="1" class="a${i}">x${i} ${i < numVars ? '+' : ''}`;
+    if (isNaN(numVars) || numVars <= 0) {
+        console.error("Número de variables inválido al agregar restricción.");
+        return;
     }
 
-    contenido += `
-        <select class="operador">
+    const restriccionDiv = document.createElement("div");
+    restriccionDiv.className = "restriccion-row restriccion";
+
+    restriccionDiv.innerHTML = generarContenidoRestriccion(numVars);
+    contenedor.insertBefore(restriccionDiv, document.getElementById("btnAgregar"));
+
+    restriccionDiv.querySelector(".btnEliminar").addEventListener("click", () => restriccionDiv.remove());
+}
+
+/**
+ * Genera el contenido HTML de una restricción.
+ */
+function generarContenidoRestriccion(numVars) {
+    let inputs = "";
+    for (let i = 1; i <= numVars; i++) {
+        inputs += `<input type="number" value="1" class="input-field variable-input a${i}"> x<sub>${i}</sub>${i < numVars ? " + " : ""}`;
+    }
+
+    return `
+        ${inputs}
+        <select class="input-field operador">
             <option value="<=" selected>≤</option>
             <option value="=">=</option>
             <option value=">=">≥</option>
         </select>
-        <input type="number" value="10" class="b">
-        <button class="btn secondary btnEliminar">✖</button>
+        <input type="number" value="10" class="input-field variable-input b">
+        <button class="btn btn-delete btnEliminar" type="button" title="Eliminar restricción">&times;</button>
     `;
-
-    restriccionDiv.innerHTML = contenido;
-    contenedor.insertBefore(restriccionDiv, btnAgregar);
 }
 
-// ---------------------------
-// Actualizar todas las restricciones al cambiar n° variables
-// ---------------------------
+/**
+ * Elimina todas las restricciones actuales y las regenera con el número correcto de variables.
+ */
 function actualizarRestricciones() {
     const contenedor = document.getElementById("restricciones");
-    const restricciones = contenedor.querySelectorAll(".restriccion");
+    const numVars = parseInt(document.getElementById("numVariables").value, 10);
 
-    restricciones.forEach(r => r.remove());
+    if (isNaN(numVars) || numVars <= 0) {
+        console.error("Número de variables inválido al actualizar restricciones.");
+        return;
+    }
+
+    // Eliminar todas las restricciones existentes
+    contenedor.querySelectorAll(".restriccion").forEach(r => r.remove());
+
+    // Agregar una nueva restricción inicial con el número correcto de variables
     agregarRestriccion();
 }
 
-// ---------------------------
-// Obtener coeficientes de la función objetivo
-// ---------------------------
-function getFunctionObjective() {
-    const numVariables = parseInt(document.getElementById("numVariables").value);
-    const c = [];
-    for (let i = 1; i <= numVariables; i++) {
-        const valor = document.getElementById(`coef${i}`).value;
-        const numero = parseFloat(valor);
-        if (isNaN(numero) || valor.trim() === "") {
-            throw new Error(`Coeficiente x${i} de la función objetivo inválido o vacío`);
-        }
-        c.push(numero);
-    }
-    return c;
+/* ============================================================
+   VALIDACIÓN Y UTILIDADES
+============================================================ */
+
+/**
+ * Valida en tiempo real los inputs numéricos y aplica estilos de error.
+ */
+function validarEntradaNumerica(e) {
+    if (e.target.tagName !== "INPUT" || e.target.type !== "number") return;
+
+    let valor = e.target.value.replace(/[^\d.\-]/g, "")
+        .replace(/(\..*)\./g, "$1")   // Evita múltiples puntos
+        .replace(/(\-.*)\-/g, "$1");  // Evita múltiples signos
+
+    if (valor.lastIndexOf('-') > 0) valor = valor.replace('-', '');
+    e.target.value = valor;
+
+    const esInvalido = !valor || isNaN(parseFloat(valor)) || valor.endsWith('.') || valor.endsWith('-');
+    e.target.classList.toggle("input-error", esInvalido);
 }
 
-// ---------------------------
-// Obtener restricciones dinámicamente
-// ---------------------------
-function getRestrictions() {
-    const restricciones = [];
-    const restriccionElements = document.querySelectorAll(".restriccion");
+/* ============================================================
+   PROCESAMIENTO DE DATOS
+============================================================ */
 
-    restriccionElements.forEach(restriccion => {
-        const coefs = [];
-        let i = 1;
-        while (restriccion.querySelector(`.a${i}`)) {
-            const valor = restriccion.querySelector(`.a${i}`).value;
+/**
+ * Obtiene los coeficientes de la función objetivo.
+ */
+function getFunctionObjective() {
+    const numVariables = parseInt(document.getElementById("numVariables").value, 10);
+    return Array.from({ length: numVariables }, (_, i) => {
+        const valor = document.getElementById(`coef${i + 1}`).value.trim();
+        const numero = parseFloat(valor);
+        if (isNaN(numero)) throw new Error(`Coeficiente x${i + 1} inválido.`);
+        return numero;
+    });
+}
+
+/**
+ * Obtiene todas las restricciones activas del formulario.
+ */
+function getRestrictions() {
+    return Array.from(document.querySelectorAll(".restriccion")).map((r, index) => {
+        console.log(`Procesando restricción ${index + 1}`);
+
+        // Seleccionar únicamente inputs de coeficientes a1..aN (evita tomar 'b')
+        const coefInputs = Array.from(r.querySelectorAll('input.input-field.input-field, input.variable-input'))
+            .filter(input => Array.from(input.classList).some(cls => /^a\d+$/.test(cls)));
+
+        const coefs = coefInputs.map(input => {
+            const valor = input.value.trim();
+            console.log(`Coeficiente encontrado: '${valor}'`);
             const numero = parseFloat(valor);
-            if (isNaN(numero) || valor.trim() === "") {
-                throw new Error(`Valor inválido en coeficiente x${i}`);
+            if (isNaN(numero)) {
+                throw new Error(`Coeficiente inválido en restricción ${index + 1}: El valor '${valor}' no es un número válido.`);
             }
-            coefs.push(numero);
-            i++;
+            return numero;
+        });
+
+        const operador = r.querySelector(".operador").value;
+        console.log(`Operador encontrado: '${operador}'`);
+
+        const bInput = r.querySelector(".b");
+        const bValor = bInput.value.trim();
+        console.log(`Lado derecho encontrado: '${bValor}'`);
+        const b = parseFloat(bValor);
+        if (isNaN(b)) {
+            throw new Error(`Lado derecho inválido en restricción ${index + 1}: El valor '${bValor}' no es un número válido.`);
         }
-        const operador = restriccion.querySelector(".operador").value;
-        const valorB = restriccion.querySelector(".b").value;
-        const numeroB = parseFloat(valorB);
-        
-        if (isNaN(numeroB) || valorB.trim() === "") {
-            throw new Error("Valor inválido en el lado derecho de la restricción");
+
+        return [...coefs, operador, b];
+    });
+}
+
+/**
+ * Prepara los datos del problema para enviar al backend.
+ */
+function prepareRequestData() {
+    const c = getFunctionObjective();
+    const restricciones = getRestrictions();
+
+    // Validar que todas las restricciones tengan el mismo número de variables que la función objetivo
+    const numVariables = c.length;
+    restricciones.forEach((restriccion, index) => {
+        if (restriccion.length - 2 !== numVariables) {
+            throw new Error(
+                `La restricción ${index + 1} tiene un número de variables (${restriccion.length - 2}) diferente al de la función objetivo (${numVariables}).`
+            );
         }
-        
-        restricciones.push([...coefs, operador, numeroB]);
     });
 
-    return restricciones;
+    return {
+        problem_type: tipoModelo === "max" ? "maximization" : "minimization",
+        C: c,
+        LI: restricciones.map(r => r.slice(0, -2)),
+        O: restricciones.map(r => r.at(-2)),
+        LD: restricciones.map(r => r.at(-1))
+    };
 }
 
-// ---------------------------
-// Preparar y enviar solicitud al backend
-// ---------------------------
-function prepareRequestData() {
-    try {
-        const c = getFunctionObjective();
-        const restricciones = getRestrictions();
+/* ============================================================
+   RESOLUCIÓN Y COMUNICACIÓN CON BACKEND
+============================================================ */
 
-        const A = restricciones.map(r => r.slice(0, -2));
-        const b = restricciones.map(r => r.at(-1));
-
-        return {
-            model: tipoModelo,
-            c,
-            A,
-            b
-        };
-    } catch (error) {
-        throw error; // Re-lanzar para que lo capture solveProblem
-    }
-}
-
-// ---------------------------
-// Resolver el problema con backend
-// ---------------------------
+/**
+ * Envía el problema al backend y muestra el resultado.
+ */
 async function solveProblem() {
     const resultDiv = document.getElementById("resultado");
-    
-    resultDiv.innerHTML = "⏳ Calculando...";
-    resultDiv.style.color = "blue";
+    if (!resultDiv) return console.error("No se encontró el div #resultado");
+
+    mostrarEstado(resultDiv, "⏳ Calculando...", "blue");
+    localStorage.removeItem("simplex_result");
 
     try {
         const data = prepareRequestData();
+        localStorage.setItem("simplex_inputs", JSON.stringify(data));
 
-        const response = await fetch("/resolver_simplex", {
+        const response = await fetch("/simplex/solve-tabular", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(data)
         });
 
-        if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-        }
+        const body = await response.text();
+        if (!response.ok) throw new Error(body || `Error ${response.status}`);
+        const result = JSON.parse(body);
 
-        const result = await response.json();
-
-        console.log("Respuesta del servidor:", result); // Para debugging
-
-        // Mostrar resultados según status
-        if (result.status === 1) {
-            resultDiv.innerHTML = `
-                <h3>✅ Solución encontrada</h3>
-                <p><strong>Valor óptimo:</strong> ${result.solution.objective_value}</p>
-                <p><strong>Variables:</strong></p>
-                <ul>
-                    ${Object.entries(result.solution.variables)
-                        .map(([v, val]) => `<li>${v}: ${val.toFixed(4)}</li>`)
-                        .join("")}
-                </ul>
-            `;
-            resultDiv.style.color = "green";
-        } else if (result.status === 2) {
-            resultDiv.innerHTML = "<h3>❌ Problema no factible</h3><p>No existe una solución que cumpla todas las restricciones.</p>";
-            resultDiv.style.color = "red";
-        } else if (result.status === 3) {
-            resultDiv.innerHTML = "<h3>⚠️ Problema ilimitado</h3><p>La función objetivo no tiene límite (puede crecer infinitamente).</p>";
-            resultDiv.style.color = "orange";
-        } else {
-            resultDiv.innerHTML = `<h3>❌ Error desconocido</h3><p>${result.message || "Verifica los datos ingresados."}</p>`;
-            resultDiv.style.color = "red";
-        }
-
+        manejarRespuestaExitosa(resultDiv, result, body);
     } catch (error) {
-        console.error("Error:", error);
-        
-        // Diferenciar entre errores de validación y errores de conexión
-        if (error.message.includes("inválido") || error.message.includes("vacío")) {
-            resultDiv.innerHTML = `<h3>⚠️ Error en los datos</h3><p>${error.message}</p><p>Por favor, verifica que todos los campos contengan números válidos.</p>`;
-            resultDiv.style.color = "orange";
-        } else {
-            resultDiv.innerHTML = `<h3>❌ Error de conexión</h3><p>${error.message}</p>`;
-            resultDiv.style.color = "red";
-        }
+        manejarError(resultDiv, error);
     }
 }
 
-// Validación de entrada en tiempo real
-document.addEventListener("input", e => {
-    if (e.target.tagName === "INPUT" && e.target.type === "number") {
-        // Permitir solo números, punto decimal y signo negativo
-        e.target.value = e.target.value.replace(/[^\d\.\-]/g, "");
-        
-        // Resaltar en rojo si está vacío o inválido
-        if (e.target.value.trim() === "" || isNaN(parseFloat(e.target.value))) {
-            e.target.style.border = "2px solid red";
-        } else {
-            e.target.style.border = "";
-        }
+/**
+ * Muestra un mensaje de estado en el contenedor de resultados.
+ */
+function mostrarEstado(div, mensaje, color = "") {
+    div.classList.remove("hidden");
+    div.textContent = mensaje;
+    div.style.color = color;
+}
+
+/**
+ * Maneja y muestra una respuesta exitosa del backend.
+ */
+function manejarRespuestaExitosa(div, result, rawBody) {
+    const status = (result.status || "").toLowerCase();
+    const solucion = result.solucion || {};
+    const variables = solucion.variables || {};
+    const valorOptimo = (solucion.valor_optimo ?? "N/A").toFixed?.(2) || "N/A";
+
+    if (status === "optimo") localStorage.setItem("simplex_result", rawBody);
+
+    const tablasBtn = status === "optimo" ? `<a href="/tablas" class="btn btn-tablas btn-full btn-large">Ver Tablas</a>` : "";
+
+    div.innerHTML = `
+        <h3 class="section-title">Resultado</h3>
+        <div class="resultado-card">
+            <p><strong>Estado:</strong> ${result.status}</p>
+            <p><strong>Valor Óptimo:</strong> ${valorOptimo}</p>
+            <p><strong>Variables:</strong></p>
+            <ul class="resultado-list">
+                ${Object.entries(variables)
+                    .filter(([key]) => key.startsWith("x"))
+                    .map(([key, value]) => `<li>${key}: ${(+value).toFixed(2)}</li>`)
+                    .join("")}
+            </ul>
+            ${tablasBtn}
+        </div>
+    `;
+    div.style.color = "";
+    div.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+/**
+ * Maneja los errores durante el proceso de resolución.
+ */
+function manejarError(div, error) {
+    console.error("Error en solveProblem():", error);
+    div.innerHTML = `
+        <h3 class="section-title">Resultado</h3>
+        <div class="resultado-card">
+            <p class="resultado-error"><strong>Error:</strong> ${error.message || "No se pudo resolver el problema."}</p>
+            <p class="resultado-error-sub">Revisá la consola (F12) para más detalles.</p>
+        </div>
+    `;
+    div.classList.remove("hidden");
+}
+
+/* ============================================================
+   RESTAURACIÓN DE DATOS
+============================================================ */
+
+/**
+ * Restaura el estado del formulario desde localStorage si existe.
+ */
+function restaurarDatosPrevios() {
+    try {
+        const raw = localStorage.getItem("simplex_inputs");
+        if (!raw) return;
+
+        const data = JSON.parse(raw);
+        tipoModelo = data.problem_type === "minimization" ? "min" : "max";
+        alternarModelo(tipoModelo, 
+            document.getElementById(tipoModelo === "min" ? "btnMin" : "btnMax"),
+            document.getElementById(tipoModelo === "min" ? "btnMax" : "btnMin")
+        );
+
+        document.getElementById("numVariables").value = data.C.length;
+        renderFuncionObjetivo();
+        data.C.forEach((val, idx) => document.getElementById(`coef${idx + 1}`).value = val);
+
+        const cont = document.getElementById("restricciones");
+        cont.querySelectorAll(".restriccion").forEach(r => r.remove());
+        data.LI.forEach((coef, i) => {
+            agregarRestriccion();
+            const restr = cont.querySelectorAll(".restriccion")[i];
+            coef.forEach((val, j) => restr.querySelector(`.a${j + 1}`).value = val);
+            restr.querySelector(".operador").value = data.O[i];
+            restr.querySelector(".b").value = data.LD[i];
+        });
+    } catch (e) {
+        console.warn("No se pudieron restaurar los datos previos:", e);
     }
-});
+}

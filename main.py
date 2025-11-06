@@ -12,4 +12,9 @@ async def get_html():
     with open("frontend/templates/index.html", "r", encoding="utf-8") as f:
         return HTMLResponse(content=f.read(), status_code=200)
 
+@app.get("/tablas", response_class=HTMLResponse)
+async def get_tablas_html():
+    with open("frontend/templates/tablas.html", "r", encoding="utf-8") as f:
+        return HTMLResponse(content=f.read(), status_code=200)
+
 app.include_router(router)
