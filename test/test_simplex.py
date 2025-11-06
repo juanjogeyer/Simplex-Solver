@@ -1,5 +1,7 @@
 import unittest
 from services import resolver_simplex_tabular 
+from fastapi.testclient import TestClient
+from routers.simplex import router
 
 class TestSimplexTabular(unittest.TestCase):
 
@@ -193,6 +195,31 @@ class TestSimplexTabular(unittest.TestCase):
         self.assertAlmostEqual(res["solucion"]["valor_optimo"], 2, places=3)
         self.assertAlmostEqual(res["solucion"]["variables"]["x1"], 2, places=3)
         self.assertAlmostEqual(res["solucion"]["variables"]["x2"], 0, places=3)
+
+class TestSimplexRoutes(unittest.TestCase):
+
+    def setUp(self):
+        from fastapi import FastAPI
+        app = FastAPI()
+        app.include_router(router)
+        self.client = TestClient(app)
+
+    def test_solve_tabular(self):
+        payload = {
+            "problem_type": "maximization",
+            "C": [3, 5],
+            "LI": [[1, 0], [0, 2], [3, 2]],
+            "LD": [4, 12, 18],
+            "O": ["<=", "<=", "<="]
+        }
+
+        response = self.client.post("/simplex/solve-tabular", json=payload)
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertEqual(data["status"], "optimo")
+        self.assertAlmostEqual(data["solucion"]["valor_optimo"], 36, places=3)
+        self.assertAlmostEqual(data["solucion"]["variables"]["x1"], 2, places=3)
+        self.assertAlmostEqual(data["solucion"]["variables"]["x2"], 6, places=3)
 
 
 if __name__ == "__main__":

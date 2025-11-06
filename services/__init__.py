@@ -1,1 +1,1 @@
-from .simplex import resolver_simplex_tabular
+from .simplex_service import resolver_simplex_tabular
