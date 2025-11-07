@@ -1,1 +1,1 @@
-from .simplex_service import resolver_simplex_tabular
+from .simplex_service import resolver_simplex_tabular, generar_grafico_2d

@@ -20,6 +20,7 @@ document.addEventListener("DOMContentLoaded", () => {
 function inicializarEventos() {
     const btnAgregar = document.getElementById("btnAgregar");
     const btnResolver = document.getElementById("btnResolver");
+    const btnVerGrafico = document.getElementById("btnVerGrafico");
     const btnMax = document.getElementById("btnMax");
     const btnMin = document.getElementById("btnMin");
     const inputVariables = document.getElementById("numVariables");
@@ -35,10 +36,41 @@ function inicializarEventos() {
     inputVariables.addEventListener("change", () => {
         renderFuncionObjetivo();
         actualizarRestricciones();
+        // Ocultar botón gráfico hasta la próxima resolución
+        const grafBtn = document.getElementById("btnVerGrafico");
+        const extra = document.getElementById("accionesExtra");
+        if (grafBtn && extra) {
+            grafBtn.style.display = "none";
+            extra.classList.add("hidden");
+        }
     });
 
     // Resolver el problema
     btnResolver.addEventListener("click", solveProblem);
+
+    // Ver gráfico
+    if (btnVerGrafico) {
+        btnVerGrafico.addEventListener("click", async () => {
+            try {
+                const data = prepareRequestData();
+                if (data.C.length !== 2) return; // Seguridad
+                const resp = await fetch("/simplex/generate-graph-html", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(data)
+                });
+                const html = await resp.text();
+                if (!resp.ok) throw new Error(html || "No se pudo generar gráfico");
+                const win = window.open("about:blank", "_blank");
+                if (win) {
+                    win.document.write(html);
+                    win.document.close();
+                }
+            } catch (e) {
+                console.error("Error mostrando gráfico:", e);
+            }
+        });
+    }
 
     // Validación dinámica de entradas numéricas
     document.addEventListener("input", validarEntradaNumerica);
@@ -168,14 +200,35 @@ function actualizarRestricciones() {
 function validarEntradaNumerica(e) {
     if (e.target.tagName !== "INPUT" || e.target.type !== "number") return;
 
-    let valor = e.target.value.replace(/[^\d.\-]/g, "")
-        .replace(/(\..*)\./g, "$1")   // Evita múltiples puntos
-        .replace(/(\-.*)\-/g, "$1");  // Evita múltiples signos
+    // 1. Guardar la posición del cursor y el valor original
+    let cursorPos = e.target.selectionStart;
+    let valorOriginal = e.target.value;
 
-    if (valor.lastIndexOf('-') > 0) valor = valor.replace('-', '');
-    e.target.value = valor;
+    // 2. Limpiar caracteres no válidos (solo dígitos y puntos)
+    let valor = valorOriginal.replace(/[^\d.]/g, "");
 
-    const esInvalido = !valor || isNaN(parseFloat(valor)) || valor.endsWith('.') || valor.endsWith('-');
+    // 3. Corregir el problema de múltiples puntos de forma más clara
+    const partes = valor.split('.');
+    if (partes.length > 2) {
+        // Si hay más de un punto (ej: "12.3.4" -> ["12", "3", "4"])
+        // Nos quedamos con el primero ("12") y unimos el resto ("34")
+        valor = partes[0] + "." + partes.slice(1).join('');
+    }
+
+    // 4. Solo actualizar si el valor realmente cambió
+    if (valor !== valorOriginal) {
+        // Calculamos cuántos caracteres se eliminaron (si los hubo)
+        const diff = valorOriginal.length - valor.length;
+
+        e.target.value = valor;
+
+        // 5. Restaurar la posición del cursor, ajustada
+        // (restamos 'diff' por si se borró un carácter antes del cursor)
+        e.target.selectionStart = e.target.selectionEnd = Math.max(0, cursorPos - diff);
+    }
+
+    // 6. Validación de CSS (sin cambios)
+    const esInvalido = !valor || isNaN(parseFloat(valor)) || valor.endsWith('.');
     e.target.classList.toggle("input-error", esInvalido);
 }
 
@@ -331,6 +384,32 @@ function manejarRespuestaExitosa(div, result, rawBody) {
     `;
     div.style.color = "";
     div.scrollIntoView({ behavior: "smooth", block: "start" });
+
+    // Mostrar botón gráfico si el problema tiene exactamente 2 variables (según inputs)
+    const grafBtn = document.getElementById("btnVerGrafico");
+    const extra = document.getElementById("accionesExtra");
+    let numVars = 0;
+    try {
+        const rawInputs = localStorage.getItem("simplex_inputs");
+        if (rawInputs) {
+            const inputs = JSON.parse(rawInputs);
+            numVars = Array.isArray(inputs?.C) ? inputs.C.length : 0;
+        } else {
+            numVars = parseInt(document.getElementById("numVariables").value, 10) || 0;
+        }
+    } catch (_) {
+        numVars = parseInt(document.getElementById("numVariables").value, 10) || 0;
+    }
+
+    if (grafBtn && extra) {
+        if (numVars === 2) {
+            grafBtn.style.display = "block";
+            extra.classList.remove("hidden");
+        } else {
+            grafBtn.style.display = "none";
+            extra.classList.add("hidden");
+        }
+    }
 }
 
 /**
