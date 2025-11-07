@@ -204,30 +204,40 @@ function validarEntradaNumerica(e) {
     let cursorPos = e.target.selectionStart;
     let valorOriginal = e.target.value;
 
-    // 2. Limpiar caracteres no válidos (solo dígitos y puntos)
-    let valor = valorOriginal.replace(/[^\d.]/g, "");
+    // 2. Limpiar caracteres no válidos
+    let valor = valorOriginal.replace(/[^\d.-]/g, "");
 
-    // 3. Corregir el problema de múltiples puntos de forma más clara
+    // 3a. Lógica para el guion (solo uno y al principio)
+    // Guardamos el signo si es el primer caracter
+    let primerChar = valor.startsWith('-') ? '-' : '';
+    // Obtenemos el resto del string (o todo el string si no empezaba con '-')
+    let resto = valor.startsWith('-') ? valor.substring(1) : valor;
+    // Quitamos CUALQUIER otro guion que haya quedado en el resto del string
+    resto = resto.replace(/-/g, '');
+    // Recomponemos el valor: el signo (si había) + el resto limpio de guiones
+    valor = primerChar + resto;
+
+    // 3b. Corregir el problema de múltiples puntos
     const partes = valor.split('.');
     if (partes.length > 2) {
-        // Si hay más de un punto (ej: "12.3.4" -> ["12", "3", "4"])
-        // Nos quedamos con el primero ("12") y unimos el resto ("34")
         valor = partes[0] + "." + partes.slice(1).join('');
     }
 
     // 4. Solo actualizar si el valor realmente cambió
     if (valor !== valorOriginal) {
-        // Calculamos cuántos caracteres se eliminaron (si los hubo)
+        // Calculamos cuántos caracteres se eliminaron
         const diff = valorOriginal.length - valor.length;
 
         e.target.value = valor;
 
         // 5. Restaurar la posición del cursor, ajustada
-        // (restamos 'diff' por si se borró un carácter antes del cursor)
         e.target.selectionStart = e.target.selectionEnd = Math.max(0, cursorPos - diff);
     }
 
-    // 6. Validación de CSS (sin cambios)
+    // 6. Validación de CSS
+    // parseFloat("-") es NaN (esInvalido = true)
+    // parseFloat("-.") es NaN (esInvalido = true)
+    // parseFloat("-12.") termina en '.' (esInvalido = true)
     const esInvalido = !valor || isNaN(parseFloat(valor)) || valor.endsWith('.');
     e.target.classList.toggle("input-error", esInvalido);
 }
