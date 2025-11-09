@@ -6,6 +6,10 @@ from services.simplex_service import resolver_simplex_tabular, generar_grafico_2
 import uuid
 import tempfile
 import os
+import logging
+import base64
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(
     prefix="/simplex",
@@ -38,11 +42,14 @@ async def solve_tabular(request: SimplexRequest):
             LD=request.LD,
             O=request.O
         )
+        logger.info("Resolviendo problema simplex")
         return result
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        logger.warning(f"Error de validación en /solve-tabular: {e}")
+        raise HTTPException(status_code=400, detail=f"Datos inválidos: {e}")
     except Exception as e:
-        raise HTTPException(status_code=500, detail="Internal Server Error")
+        logger.exception("Error interno en /solve-tabular")        
+        raise HTTPException(status_code=500, detail="Ocurrió un error interno al resolver el problema. Intente nuevamente.")
 
 @router.post("/generate-graph")
 async def generate_graph(request: SimplexRequest, background_tasks: BackgroundTasks):
@@ -82,9 +89,11 @@ async def generate_graph(request: SimplexRequest, background_tasks: BackgroundTa
         background_tasks.add_task(_cleanup_file, saved_path)
         return FileResponse(saved_path, media_type="image/png", filename="graph.png")
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        logger.warning(f"Error de validación en /generate-graph: {e}")
+        raise HTTPException(status_code=400, detail=f"Datos inválidos: {e}")
     except Exception:
-        raise HTTPException(status_code=500, detail="Error interno del servidor")
+        logger.exception("Error interno en /generate-graph")
+        raise HTTPException(status_code=500, detail="Ocurrió un error al generar el gráfico. Intente nuevamente.")
 
 @router.post("/generate-graph-html", response_class=HTMLResponse)
 async def generate_graph_html(request: SimplexRequest):
@@ -114,7 +123,6 @@ async def generate_graph_html(request: SimplexRequest):
         )
         if not isinstance(raw_png, (bytes, bytearray)):
             raise HTTPException(status_code=500, detail="Error generando imagen.")
-        import base64
         b64 = base64.b64encode(raw_png).decode("ascii")
         html = f"""
         <html><head><title>Gráfico Simplex</title></head>
@@ -125,6 +133,8 @@ async def generate_graph_html(request: SimplexRequest):
         """
         return HTMLResponse(content=html)
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        logger.warning(f"Error de validación en /generate-graph-html: {e}")
+        raise HTTPException(status_code=400, detail=f"Datos inválidos: {e}")
     except Exception:
-        raise HTTPException(status_code=500, detail="Error interno del servidor")
+        logger.exception("Error interno en /generate-graph-html")
+        raise HTTPException(status_code=500, detail="Ocurrió un error al generar el gráfico en HTML. Intente nuevamente.")
