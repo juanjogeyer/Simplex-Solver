@@ -36,6 +36,7 @@ function inicializarEventos() {
     inputVariables.addEventListener("change", () => {
         renderFuncionObjetivo();
         actualizarRestricciones();
+        ocultarResultado();
         // Ocultar botón gráfico hasta la próxima resolución
         const grafBtn = document.getElementById("btnVerGrafico");
         const extra = document.getElementById("accionesExtra");
@@ -195,6 +196,34 @@ function actualizarRestricciones() {
 ============================================================ */
 
 /**
+ * Muestra un mensaje de error en pantalla
+ */
+function mostrarError(mensaje) {
+    const resultDiv = document.getElementById("resultado");
+    if (!resultDiv) return;
+    
+    resultDiv.innerHTML = `
+        <div class="alert alert-error">
+            <strong>⚠️ Error de Validación</strong>
+            <p>${mensaje}</p>
+        </div>
+    `;
+    resultDiv.classList.remove("hidden");
+    resultDiv.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+/**
+ * Oculta el div de resultados
+ */
+function ocultarResultado() {
+    const resultDiv = document.getElementById("resultado");
+    if (resultDiv) {
+        resultDiv.classList.add("hidden");
+        resultDiv.innerHTML = "";
+    }
+}
+
+/**
  * Valida en tiempo real los inputs numéricos y aplica estilos de error.
  */
 function validarEntradaNumerica(e) {
@@ -208,13 +237,9 @@ function validarEntradaNumerica(e) {
     let valor = valorOriginal.replace(/[^\d.-]/g, "");
 
     // 3a. Lógica para el guion (solo uno y al principio)
-    // Guardamos el signo si es el primer caracter
     let primerChar = valor.startsWith('-') ? '-' : '';
-    // Obtenemos el resto del string (o todo el string si no empezaba con '-')
     let resto = valor.startsWith('-') ? valor.substring(1) : valor;
-    // Quitamos CUALQUIER otro guion que haya quedado en el resto del string
     resto = resto.replace(/-/g, '');
-    // Recomponemos el valor: el signo (si había) + el resto limpio de guiones
     valor = primerChar + resto;
 
     // 3b. Corregir el problema de múltiples puntos
@@ -225,21 +250,79 @@ function validarEntradaNumerica(e) {
 
     // 4. Solo actualizar si el valor realmente cambió
     if (valor !== valorOriginal) {
-        // Calculamos cuántos caracteres se eliminaron
         const diff = valorOriginal.length - valor.length;
-
         e.target.value = valor;
-
-        // 5. Restaurar la posición del cursor, ajustada
         e.target.selectionStart = e.target.selectionEnd = Math.max(0, cursorPos - diff);
     }
 
     // 6. Validación de CSS
-    // parseFloat("-") es NaN (esInvalido = true)
-    // parseFloat("-.") es NaN (esInvalido = true)
-    // parseFloat("-12.") termina en '.' (esInvalido = true)
     const esInvalido = !valor || isNaN(parseFloat(valor)) || valor.endsWith('.');
     e.target.classList.toggle("input-error", esInvalido);
+}
+
+/**
+ * Valida que el número de variables sea correcto
+ */
+function validarNumeroVariables() {
+    const numVariables = parseInt(document.getElementById("numVariables").value, 10);
+    
+    if (isNaN(numVariables) || numVariables <= 0) {
+        mostrarError("El número de variables debe ser mayor o igual a 1.");
+        return false;
+    }
+    
+    return true;
+}
+
+/**
+ * Valida que todos los inputs tengan valores numéricos válidos
+ */
+function validarInputsNumericos() {
+    const inputs = document.querySelectorAll('input[type="number"]');
+    const inputsInvalidos = [];
+    
+    inputs.forEach((input, index) => {
+        const valor = input.value.trim();
+        const numero = parseFloat(valor);
+        
+        if (!valor || isNaN(numero) || valor.endsWith('.')) {
+            inputsInvalidos.push({
+                input: input,
+                id: input.id || `Input ${index + 1}`,
+                valor: valor
+            });
+            input.classList.add("input-error");
+        }
+    });
+    
+    if (inputsInvalidos.length > 0) {
+        const mensaje = `Se encontraron ${inputsInvalidos.length} campo(s) con valores inválidos. Por favor, revisá los campos marcados en rojo.`;
+        mostrarError(mensaje);
+        
+        // Hacer scroll al primer input inválido
+        if (inputsInvalidos[0].input) {
+            inputsInvalidos[0].input.scrollIntoView({ behavior: "smooth", block: "center" });
+            inputsInvalidos[0].input.focus();
+        }
+        
+        return false;
+    }
+    
+    return true;
+}
+
+/**
+ * Valida que haya al menos una restricción
+ */
+function validarRestricciones() {
+    const restricciones = document.querySelectorAll(".restriccion");
+    
+    if (restricciones.length === 0) {
+        mostrarError("Debe agregar al menos una restricción al problema.");
+        return false;
+    }
+    
+    return true;
 }
 
 /* ============================================================
@@ -264,15 +347,12 @@ function getFunctionObjective() {
  */
 function getRestrictions() {
     return Array.from(document.querySelectorAll(".restriccion")).map((r, index) => {
-        console.log(`Procesando restricción ${index + 1}`);
-
         // Seleccionar únicamente inputs de coeficientes a1..aN (evita tomar 'b')
-        const coefInputs = Array.from(r.querySelectorAll('input.input-field.input-field, input.variable-input'))
+        const coefInputs = Array.from(r.querySelectorAll('input.variable-input'))
             .filter(input => Array.from(input.classList).some(cls => /^a\d+$/.test(cls)));
 
         const coefs = coefInputs.map(input => {
             const valor = input.value.trim();
-            console.log(`Coeficiente encontrado: '${valor}'`);
             const numero = parseFloat(valor);
             if (isNaN(numero)) {
                 throw new Error(`Coeficiente inválido en restricción ${index + 1}: El valor '${valor}' no es un número válido.`);
@@ -281,12 +361,10 @@ function getRestrictions() {
         });
 
         const operador = r.querySelector(".operador").value;
-        console.log(`Operador encontrado: '${operador}'`);
-
         const bInput = r.querySelector(".b");
         const bValor = bInput.value.trim();
-        console.log(`Lado derecho encontrado: '${bValor}'`);
         const b = parseFloat(bValor);
+        
         if (isNaN(b)) {
             throw new Error(`Lado derecho inválido en restricción ${index + 1}: El valor '${bValor}' no es un número válido.`);
         }
@@ -331,6 +409,11 @@ function prepareRequestData() {
 async function solveProblem() {
     const resultDiv = document.getElementById("resultado");
     if (!resultDiv) return console.error("No se encontró el div #resultado");
+
+    // VALIDACIONES PREVIAS A LA EJECUCIÓN
+    if (!validarNumeroVariables()) return;
+    if (!validarInputsNumericos()) return;
+    if (!validarRestricciones()) return;
 
     mostrarEstado(resultDiv, "⏳ Calculando...", "blue");
     localStorage.removeItem("simplex_result");
@@ -395,7 +478,7 @@ function manejarRespuestaExitosa(div, result, rawBody) {
     div.style.color = "";
     div.scrollIntoView({ behavior: "smooth", block: "start" });
 
-    // Mostrar botón gráfico si el problema tiene exactamente 2 variables (según inputs)
+    // Mostrar botón gráfico si el problema tiene exactamente 2 variables
     const grafBtn = document.getElementById("btnVerGrafico");
     const extra = document.getElementById("accionesExtra");
     let numVars = 0;
