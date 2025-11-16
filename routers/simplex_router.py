@@ -30,7 +30,7 @@ def _cleanup_file(path: str) -> None:
 
 def _solve_and_get_mark_point(request: SimplexRequest) -> Optional[Tuple[float, float]]:
     """
-    HELPER REFACTORIZADO: Resuelve el simplex y retorna el punto óptimo (x1, x2) o None.
+    Resuelve el simplex y retorna el punto óptimo (x1, x2) o None.
     Esto elimina la duplicación en los endpoints de gráficos.
     """
     try:
