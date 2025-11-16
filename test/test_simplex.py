@@ -1,7 +1,7 @@
 import unittest
 from services import resolver_simplex_tabular 
 from fastapi.testclient import TestClient
-from routers.simplex import router
+from routers.simplex_router import router
 
 class TestSimplexTabular(unittest.TestCase):
 

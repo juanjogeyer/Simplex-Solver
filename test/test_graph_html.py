@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
-from routers.simplex import router
+from routers.simplex_router import router
 
 
 def test_generate_graph_html_endpoint():
