@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.0](https://github.com/juanjogeyer/Simplex-Solver/compare/v1.1.0...v1.2.0) (2025-11-16)
+
+
+### Features
+
+* Add PDF generation capabilities using ReportLab ([d5b5311](https://github.com/juanjogeyer/Simplex-Solver/commit/d5b53117e2b5c0f0dcc2ecc72307b6bccdf6790b))
+
 ## [1.1.0](https://github.com/juanjogeyer/Simplex-Solver/compare/v1.0.0...v1.1.0) (2025-11-13)
 
 
