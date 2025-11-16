@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.1](https://github.com/juanjogeyer/Simplex-Solver/compare/v1.2.0...v1.2.1) (2025-11-16)
+
+
+### Bug Fixes
+
+* Implement PDF generation functionality and update UI for PDF export (closes [#20](https://github.com/juanjogeyer/Simplex-Solver/issues/20)) ([0061c48](https://github.com/juanjogeyer/Simplex-Solver/commit/0061c487b5dea9600f932e6260405fab6307f984))
+
 ## [1.2.0](https://github.com/juanjogeyer/Simplex-Solver/compare/v1.1.0...v1.2.0) (2025-11-16)
 
 
