@@ -4,11 +4,23 @@ let tipoModelo = "max";
 /* ============================================================
    EVENTOS PRINCIPALES
 ============================================================ */
-document.addEventListener("DOMContentLoaded", () => {
-    inicializarEventos();
-    inicializarInterfaz();
-    restaurarDatosPrevios();
-});
+function _initApp() {
+    try {
+        inicializarEventos();
+        inicializarInterfaz();
+        restaurarDatosPrevios();
+        console.log("DEBUG Init: App inicializada");
+    } catch (err) {
+        console.error("DEBUG Init: Error inicializando la app:", err);
+    }
+}
+
+if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", _initApp);
+} else {
+    // DOM ya cargado: inicializar inmediatamente
+    _initApp();
+}
 
 /* ============================================================
    INICIALIZACIÓN
@@ -18,12 +30,24 @@ document.addEventListener("DOMContentLoaded", () => {
  * Configura todos los listeners iniciales de botones y entradas.
  */
 function inicializarEventos() {
+    console.log("DEBUG Init: Iniciando configuración de eventos...");
     const btnAgregar = document.getElementById("btnAgregar");
     const btnResolver = document.getElementById("btnResolver");
     const btnVerGrafico = document.getElementById("btnVerGrafico");
+    const btnDescargarPDF = document.getElementById("btnDescargarPDF");
     const btnMax = document.getElementById("btnMax");
     const btnMin = document.getElementById("btnMin");
     const inputVariables = document.getElementById("numVariables");
+    
+    console.log("DEBUG Init: Botones encontrados:", {
+        btnAgregar,
+        btnResolver,
+        btnVerGrafico,
+        btnDescargarPDF,
+        btnMax,
+        btnMin,
+        inputVariables
+    });
 
     // Alternar tipo de modelo (Max / Min)
     btnMax.addEventListener("click", () => alternarModelo("max", btnMax, btnMin));
@@ -37,13 +61,9 @@ function inicializarEventos() {
         renderFuncionObjetivo();
         actualizarRestricciones();
         ocultarResultado();
-        // Ocultar botón gráfico hasta la próxima resolución
-        const grafBtn = document.getElementById("btnVerGrafico");
+        // Ocultar sección de acciones extra
         const extra = document.getElementById("accionesExtra");
-        if (grafBtn && extra) {
-            grafBtn.style.display = "none";
-            extra.classList.add("hidden");
-        }
+        if (extra) extra.classList.add("hidden");
     });
 
     // Resolver el problema
@@ -72,6 +92,30 @@ function inicializarEventos() {
             }
         });
     }
+
+    // Descargar PDF
+    console.log("DEBUG Init: Buscando botón PDF...", btnDescargarPDF);
+    if (btnDescargarPDF) {
+        // Usa addEventListener para evitar sobrescribir posibles handlers y asegurar múltiples binds seguros
+        btnDescargarPDF.addEventListener("click", (e) => {
+            console.log("DEBUG Init: ¡Click detectado en botón PDF!");
+            e.preventDefault();
+            descargarPDFHandler(e);
+        });
+        console.log("DEBUG Init: Event listener agregado al botón PDF");
+    } else {
+        console.error("DEBUG Init: No se encontró el botón PDF en inicialización");
+    }
+
+    // Delegación como respaldo por si algo evita el binding directo
+    document.addEventListener("click", (evt) => {
+        const target = evt.target;
+        if (target && target.id === "btnDescargarPDF") {
+            console.log("DEBUG Init: Delegation handler activado para botón PDF");
+            evt.preventDefault();
+            descargarPDFHandler(evt);
+        }
+    });
 
     // Validación dinámica de entradas numéricas
     document.addEventListener("input", validarEntradaNumerica);
@@ -478,9 +522,11 @@ function manejarRespuestaExitosa(div, result, rawBody) {
     div.style.color = "";
     div.scrollIntoView({ behavior: "smooth", block: "start" });
 
-    // Mostrar botón gráfico si el problema tiene exactamente 2 variables
-    const grafBtn = document.getElementById("btnVerGrafico");
+    // Mostrar botones extra: PDF siempre, gráfico solo si hay 2 variables
     const extra = document.getElementById("accionesExtra");
+    const pdfBtn = document.getElementById("btnDescargarPDF");
+    const grafBtn = document.getElementById("btnVerGrafico");
+    
     let numVars = 0;
     try {
         const rawInputs = localStorage.getItem("simplex_inputs");
@@ -494,14 +540,30 @@ function manejarRespuestaExitosa(div, result, rawBody) {
         numVars = parseInt(document.getElementById("numVariables").value, 10) || 0;
     }
 
-    if (grafBtn && extra) {
+    console.log("DEBUG: Mostrando botones. numVars =", numVars);
+    console.log("DEBUG: extra =", extra, "pdfBtn =", pdfBtn, "grafBtn =", grafBtn);
+
+    if (extra && pdfBtn && grafBtn) {
+        // Gráfico: solo si hay 2 variables, si no ocultar
         if (numVars === 2) {
-            grafBtn.style.display = "block";
-            extra.classList.remove("hidden");
+            grafBtn.style.display = "";  // Mostrar (quita inline style)
+            console.log("DEBUG: Mostrando botón gráfico");
         } else {
-            grafBtn.style.display = "none";
-            extra.classList.add("hidden");
+            grafBtn.style.display = "none";  // Ocultar explícitamente
+            console.log("DEBUG: Ocultando botón gráfico (numVars !== 2)");
         }
+        
+        // PDF: siempre mostrar (quita cualquier inline style que lo oculte)
+        pdfBtn.style.display = "";
+        console.log("DEBUG: Mostrando botón PDF");
+        
+        // El event listener ya se agregó en inicializarEventos()
+
+        // Mostrar el contenedor
+        extra.classList.remove("hidden");
+        console.log("DEBUG: Contenedor accionesExtra visible");
+    } else {
+        console.error("DEBUG: Faltan elementos. extra:", extra, "pdfBtn:", pdfBtn, "grafBtn:", grafBtn);
     }
 }
 
@@ -554,5 +616,158 @@ function restaurarDatosPrevios() {
         });
     } catch (e) {
         console.warn("No se pudieron restaurar los datos previos:", e);
+    }
+}
+
+// Crea el botón PDF si no existe y lo inserta en #accionesExtra
+function crearBotonPDF() {
+    const extra = document.getElementById("accionesExtra");
+    if (!extra) return null;
+    const btn = document.createElement("button");
+    btn.id = "btnDescargarPDF";
+    btn.className = "btn btn-secondary btn-full btn-large";
+    btn.textContent = "Descargar PDF";
+    btn.style.display = "none";
+    extra.appendChild(btn);
+    return btn;
+}
+
+async function descargarPDFHandler(e) {
+    console.log("DEBUG PDF: Iniciando descarga de PDF");
+    const btn = e?.currentTarget || document.getElementById("btnDescargarPDF");
+    const originalText = btn ? btn.textContent : null;
+    // Abrimos una pestaña en blanco de inmediato (gesto de usuario) para evitar bloqueos
+    let preOpenedWin = null;
+    try {
+        preOpenedWin = window.open("about:blank", "_blank");
+        if (preOpenedWin) {
+            preOpenedWin.document.write("<html><head><title>Generando PDF…</title></head><body style='font-family:Inter,Arial;padding:16px'>Generando PDF…</body></html>");
+            preOpenedWin.document.close();
+        }
+    } catch (err) {
+        console.warn("DEBUG PDF: No se pudo abrir ventana previa:", err);
+    }
+    try {
+        // Feedback visual
+        if (btn) {
+            btn.disabled = true;
+            btn.textContent = "Generando PDF...";
+        }
+
+        // Intenta usar la última entrada válida guardada tras Resolver
+        let data = null;
+        const saved = localStorage.getItem("simplex_inputs");
+        if (saved) {
+            try {
+                data = JSON.parse(saved);
+                console.log("DEBUG PDF: Usando datos guardados de localStorage");
+            } catch {
+                // Si falla, preparamos desde el formulario
+                data = null;
+            }
+        }
+        if (!data) {
+            data = prepareRequestData();
+            console.log("DEBUG PDF: Datos preparados desde formulario", data);
+        }
+
+        const resp = await fetch("/simplex/generate-pdf", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(data)
+        });
+
+        console.log("DEBUG PDF: Respuesta recibida. Status:", resp.status, "OK:", resp.ok);
+        
+        if (!resp.ok) {
+            const text = await resp.text();
+            console.error("DEBUG PDF: Error del servidor:", text);
+            throw new Error(text || `Error ${resp.status}`);
+        }
+
+        const blob = await resp.blob();
+        if (!(blob instanceof Blob) || blob.size === 0) {
+            throw new Error("Respuesta vacía al generar el PDF.");
+        }
+        console.log("DEBUG PDF: Blob recibido. Tamaño:", blob.size, "Tipo:", blob.type);
+
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = "simplex_resultado.pdf";
+        // Asegura inicio de descarga en algunos navegadores
+        a.rel = "noopener";
+        document.body.appendChild(a);
+        // Fallback específico para IE/Edge Legacy
+        if (window.navigator && window.navigator.msSaveOrOpenBlob) {
+            window.navigator.msSaveOrOpenBlob(blob, "simplex_resultado.pdf");
+        } else {
+            a.click();
+        }
+        console.log("DEBUG PDF: Click en enlace de descarga ejecutado");
+
+        // Fallback 1: usar la pestaña preabierta
+        try {
+            if (preOpenedWin && !preOpenedWin.closed) {
+                preOpenedWin.location = url;
+            }
+        } catch (err) {
+            console.warn("DEBUG PDF: No se pudo navegar la ventana preabierta:", err);
+        }
+
+        // Fallback 2: abrir en nueva pestaña si se bloqueó la descarga
+        try {
+            const opened = window.open(url, "_blank");
+            if (!opened) {
+                console.warn("DEBUG PDF: window.open fue bloqueado por el navegador");
+            }
+        } catch (err) {
+            console.warn("DEBUG PDF: Fallback window.open falló:", err);
+        }
+
+        // Fallback 3: navegar directamente a la URL del blob
+        try {
+            setTimeout(() => {
+                if (document.visibilityState === "visible") {
+                    window.location.assign(url);
+                }
+            }, 100);
+        } catch (err) {
+            console.warn("DEBUG PDF: Fallback location.assign falló:", err);
+        }
+
+        setTimeout(() => {
+            a.remove();
+            window.URL.revokeObjectURL(url);
+            console.log("DEBUG PDF: Limpieza completada");
+        }, 200);
+
+        // Mensaje no intrusivo si existe contenedor de resultados
+        const resultDiv = document.getElementById("resultado");
+        if (resultDiv) {
+            resultDiv.classList.remove("hidden");
+            resultDiv.insertAdjacentHTML(
+                "beforeend",
+                '<p class="resultado-ok">Descarga iniciada: simplex_resultado.pdf</p>'
+            );
+        }
+
+    } catch (e) {
+        console.error("DEBUG PDF: Error capturado:", e);
+        // Trata de mostrarlo en el contenedor de resultados además del alert
+        const resultDiv = document.getElementById("resultado");
+        if (resultDiv) {
+            resultDiv.classList.remove("hidden");
+            resultDiv.insertAdjacentHTML(
+                "beforeend",
+                `<p class="resultado-error"><strong>Error al generar PDF:</strong> ${e.message || e}</p>`
+            );
+        }
+        alert("No se pudo generar/descargar el PDF. Error: " + (e.message || e));
+    } finally {
+        if (btn) {
+            btn.disabled = false;
+            if (originalText) btn.textContent = originalText;
+        }
     }
 }

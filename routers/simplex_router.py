@@ -9,6 +9,7 @@ import tempfile
 import os
 import logging
 import base64
+from services.PDF_service.PDF_builder import SimplexPDFBuilder
 
 logger = logging.getLogger(__name__)
 
@@ -138,7 +139,7 @@ async def generate_graph_html(request: SimplexRequest):
             request.LD,
             titulo="Gráfico de Restricciones y Función Objetivo",
             mark_point=mark,
-            save_path=None # <-- Esto hace que retorne bytes
+            save_path=None
         )
         
         if not isinstance(raw_png, (bytes, bytearray)):
@@ -159,3 +160,47 @@ async def generate_graph_html(request: SimplexRequest):
     except Exception as e:
         logger.exception("Error interno en /generate-graph-html")
         raise HTTPException(status_code=500, detail="Ocurrió un error al generar el gráfico en HTML.")
+
+
+@router.post("/generate-pdf")
+async def generate_pdf(request: SimplexRequest, background_tasks: BackgroundTasks):
+    """
+    Genera un PDF del resultado del método Simplex y lo devuelve como archivo descargable.
+    """
+    try:
+        result = resolver_simplex_tabular(
+            problem_type=request.problem_type,
+            C=request.C,
+            LI=request.LI,
+            LD=request.LD,
+            O=request.O,
+        )
+
+        # Crear ruta temporal para el PDF
+        tmp_dir = tempfile.gettempdir()
+        filename = f"simplex_result_{uuid.uuid4().hex}.pdf"
+        pdf_path = os.path.join(tmp_dir, filename)
+
+        # Construir el PDF
+        builder = SimplexPDFBuilder(result)
+        builder.set_empresa("Simplex Solver", subtitulo="Reporte del Método Simplex")
+        builder.build(pdf_path)
+
+        if not os.path.exists(pdf_path):
+            raise HTTPException(status_code=500, detail="No se pudo generar el PDF.")
+
+        # Programar limpieza
+        background_tasks.add_task(_cleanup_file, pdf_path)
+
+        logger.info(f"PDF generado: {filename}")
+        return FileResponse(pdf_path, media_type="application/pdf", filename="simplex_resultado.pdf")
+
+    except ValueError as e:
+        logger.warning(f"Error de validación en /generate-pdf: {e}")
+        raise HTTPException(status_code=400, detail=f"Datos inválidos: {e}")
+    except Exception as e:
+        logger.exception("Error interno en /generate-pdf")
+        # Limpieza si corresponde
+        if 'pdf_path' in locals() and os.path.exists(pdf_path):
+            _cleanup_file(pdf_path)
+        raise HTTPException(status_code=500, detail="Ocurrió un error al generar el PDF.")
