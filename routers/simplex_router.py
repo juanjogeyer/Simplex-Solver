@@ -1,8 +1,7 @@
 from fastapi import APIRouter, HTTPException, BackgroundTasks
 from fastapi.responses import FileResponse, HTMLResponse
-from typing import List, Literal, Optional, Tuple
-from services.simplex_service import resolver_simplex_tabular, generar_grafico_2d
-# Importamos nuestros modelos centralizados
+from typing import Optional, Tuple
+from services import resolver_simplex_tabular, generar_grafico_2d
 from schemas import SimplexRequest, SimplexResponse 
 import uuid
 import tempfile
@@ -30,10 +29,7 @@ def _cleanup_file(path: str) -> None:
         logger.warning(f"No se pudo eliminar el archivo temporal {path}: {e}")
 
 def _solve_and_get_mark_point(request: SimplexRequest) -> Optional[Tuple[float, float]]:
-    """
-    Resuelve el simplex y retorna el punto óptimo (x1, x2) o None.
-    Esto elimina la duplicación en los endpoints de gráficos.
-    """
+    """Resuelve el simplex y retorna el punto óptimo (x1, x2) o None."""
     try:
         solve = resolver_simplex_tabular(
             problem_type=request.problem_type,
